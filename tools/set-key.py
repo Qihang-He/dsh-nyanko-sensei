@@ -35,7 +35,10 @@ STORE = HOME / ".credentials.yaml"
 
 # Keys this project knows how to use, and where each is read from.
 KNOWN = {
-    "ARK_API_KEY": "Volcengine Ark - Seedream images, Seedance video (tools/platform.py)",
+    "ARK_CN_API_KEY": "Volcengine Ark 后付费 - Seedream images, Seedance video "
+                      "(official ark-plan-api plugin route 'ark-cn' AND tools/platform.py)",
+    "ARK_API_KEY": "Volcengine Ark - same key under the obvious name; "
+                   "tools/platform.py accepts it, the official plugin does not",
     "GEMINI_API_KEY": "Google AI Studio - Gemini images (tools/imggen.py, needs a proxy)",
     "OPENROUTER_API_KEY": "OpenRouter - Gemini images via relay (tools/imggen.py)",
     "OFOX_API_KEY": "OfoxAI relay - images and vision (tools/imggen.py, tools/ofox.py)",

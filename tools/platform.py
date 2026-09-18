@@ -46,7 +46,13 @@ sys.path.insert(0, str(Path(__file__).parent))
 from imggen import credential  # noqa: E402
 
 BASE = "https://ark.cn-beijing.volces.com/api/v3"
-KEY_NAMES = ("ARK_API_KEY", "VOLC_ACCESSKEY", "VOLCENGINE_API_KEY")
+# Names the same Ark account key may be stored under. `ARK_CN_API_KEY` is first
+# because that is what the official `ark-plan-api` plugin's pay-as-you-go route
+# reads via `apiKeyEnv`, and the DSH Models page writes keys under exactly the
+# name a route references — so setting the key once serves both the plugin and
+# this tool. `ARK_API_KEY` is kept because it is the obvious name and is what the
+# setup notes used before the plugin was installed.
+KEY_NAMES = ("ARK_CN_API_KEY", "ARK_API_KEY", "VOLCENGINE_API_KEY", "VOLC_ACCESSKEY")
 
 # Model ids as Ark spells them. The dated suffix is part of the id, and Ark
 # rejects an id it does not know, so these are listed explicitly rather than
@@ -374,10 +380,18 @@ def check() -> int:
     """Report whether a key is present and whether Ark accepts it."""
     key = api_key()
     if not key:
-        print("ARK_API_KEY       not configured")
-        print("\n" + "see `python tools/platform.py --check` docstring for setup steps")
+        print(f"no Ark key under any of: {', '.join(KEY_NAMES)}")
+        print("\nTwo ways to set it, pick one:")
+        print("  A. DSH Web UI (recommended when ark-plan-api is installed):")
+        print("     Settings > Models > the Ark (后付费) route > paste the key.")
+        print("     The page stores it under that route's apiKeyEnv, which is")
+        print("     ARK_CN_API_KEY — the name this tool looks for first.")
+        print("  B. from a terminal, without the key passing through any log:")
+        print("     python tools/set-key.py ARK_CN_API_KEY")
+        print("\n  Get the key at https://console.volcengine.com/ark > API Key 管理,")
+        print("  after enabling 图片生成 and 视频生成 under 开通管理.")
         return 1
-    print(f"ARK_API_KEY       configured ({key[:4]}...{key[-4:]})")
+    print(f"key found         under one of {KEY_NAMES} ({key[:4]}...{key[-4:]})")
     try:
         r = requests.post(f"{BASE}/images/generations",
                           headers=_headers(key),
@@ -389,12 +403,13 @@ def check() -> int:
         print(f"connectivity      FAILED: {type(exc).__name__}: {str(exc)[:120]}")
         return 2
     if r.status_code == 200:
-        print("image generation  OK")
+        print(f"image generation  OK  (model {DEFAULT_IMAGE_MODEL})")
         return 0
     print(f"image generation  HTTP {r.status_code}: {r.text[:300]}")
     if r.status_code in (401, 403):
         print("  -> the key is present but rejected. Check that 图片生成 is enabled")
         print("     for this account in the Ark console (开通管理).")
+        print("     Note: enabling a VIDEO model alone is not enough for this check.")
     return 2
 
 
