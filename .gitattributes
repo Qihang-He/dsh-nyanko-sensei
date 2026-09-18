@@ -1,0 +1,21 @@
+# Normalise line endings to LF in the repository.
+#
+# This project ships hand-written JavaScript and Python with no build step, so
+# what is committed is exactly what runs. Letting Git rewrite line endings on
+# checkout means a Windows contributor and a Linux contributor diff the whole
+# file against each other, and a CRLF in the client bundle is a change nobody
+# asked for.
+* text=auto eol=lf
+
+# Windows launchers are the one exception: a .cmd with LF-only endings can
+# misbehave under some shells, so they keep CRLF.
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary assets must never be text-normalised or diffed.
+*.webm binary
+*.mp3 binary
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary

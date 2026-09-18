@@ -1,0 +1,39 @@
+# ---------------------------------------------------------------------------
+# Generated art intermediates.
+#
+# `work/` holds everything the asset pipeline produces *between* a prompt and a
+# finished animation: the raw image-model output (1 MB per sheet), the four
+# aligned PNG frames per action, the decoded check images and the browser
+# screenshot. None of it ships — the built WebM files in `assets/anims/` are the
+# artifacts of record, and keeping the intermediates would add ~18 MB to a
+# ~500 KB package.
+#
+# Deleting this directory is always safe: `npm run art:actions` recreates the
+# sheets and `npm run art:build` recreates the frames from them.
+# ---------------------------------------------------------------------------
+work/
+
+# Local artifacts
+*.log
+*.local
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Node
+node_modules/
+.npm/
+pnpm-debug.log*
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

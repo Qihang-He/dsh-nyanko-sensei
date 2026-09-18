@@ -1,0 +1,55 @@
+{
+  "name": "dsh-nyanko-sensei",
+  "version": "0.1.0",
+  "description": "Nyanko-sensei desktop pet for DeepSeek Harness Web: a round calico cat that lives on your UI, reacts to clicks with a voice line (bring your own audio), naps, walks around and follows agent activity. DSH 桌宠插件：夏目友人帳风格的娘口三三／猫咪老师，点击发声、随 Agent 状态联动、可拖拽漫游。",
+  "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "dsh-plugin",
+    "desktop-pet",
+    "pet",
+    "nyanko",
+    "calico-cat",
+    "web"
+  ],
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": []
+    }
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "assets/anims",
+    "assets/voice",
+    "README.md",
+    "README.en.md",
+    "LICENSE",
+    "THIRD_PARTY_ASSETS.md"
+  ],
+  "scripts": {
+    "art:views": "python tools/gen_art.py sheet",
+    "art:actions": "python tools/gen_art.py actions",
+    "art:build": "python tools/build_assets.py all",
+    "art:voice": "python tools/gen_voice.py",
+    "voice:record": "pwsh -File tools/record-voice.ps1",
+    "check": "node tools/check-package.mjs",
+    "verify:browser": "node tools/verify-browser.mjs"
+  }
+}

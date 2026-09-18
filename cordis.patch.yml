@@ -1,0 +1,11 @@
+# dsh-nyanko-sensei bundle patch: inserts the desktop-pet plugin row into the
+# web profile roster. Applied as a profile bundle layer (the `dsh.bundle.patch`
+# manifest field); install with `dsh plugin --profile web add <npm-or-path>`.
+#
+# The row is a bare plugin by package name: the node half (exports ".") runs in
+# the host process — it serves the animation and voice assets over a prefix
+# route — and the `dsh.client` declaration in package.json makes the browser
+# half (exports "./client") load into the web GUI, where the pet actually lives.
+- insert:
+    - id: dsh-nyanko-sensei
+      name: 'dsh-nyanko-sensei'
