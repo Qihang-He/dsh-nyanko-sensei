@@ -1,17 +1,33 @@
 # ---------------------------------------------------------------------------
 # Generated art intermediates.
 #
-# `work/` holds everything the asset pipeline produces *between* a prompt and a
-# finished animation: the raw image-model output (1 MB per sheet), the four
-# aligned PNG frames per action, the decoded check images and the browser
-# screenshot. None of it ships — the built WebM files in `assets/anims/` are the
-# artifacts of record, and keeping the intermediates would add ~18 MB to a
-# ~500 KB package.
-#
-# Deleting this directory is always safe: `npm run art:actions` recreates the
-# sheets and `npm run art:build` recreates the frames from them.
+# `work/` holds everything the asset pipeline produces *between* an input and a
+# finished animation: extracted sprites, the aligned PNG frames per action, the
+# review contact sheets, the decoded check images and the browser screenshot.
+# None of it is source, and all of it can be regenerated.
 # ---------------------------------------------------------------------------
 work/
+
+# ---------------------------------------------------------------------------
+# Built media. NOT tracked, on purpose.
+#
+# The animations in `assets/anims/` are produced by deforming artwork supplied
+# by the person running the build (tools/gen_motion.py), and the sprites it
+# deforms are cut from that same supplied artwork. That artwork is third-party
+# and copyrighted, so neither the sprites nor anything derived from them can be
+# redistributed — which rules out committing the animations.
+#
+# The repository is therefore code and tools only: it can rebuild a pet from art
+# *you* have the right to use, and it ships no art itself. `assets/voice/` is
+# untracked for the same reason — it is where a user's own audio lands.
+#
+# Both directories are recreated by the build, and both keep a .gitkeep so the
+# layout stays visible in a fresh clone.
+# ---------------------------------------------------------------------------
+assets/anims/*
+!assets/anims/.gitkeep
+assets/voice/*
+!assets/voice/.gitkeep
 
 # Local artifacts
 *.log

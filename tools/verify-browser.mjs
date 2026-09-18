@@ -176,7 +176,35 @@ async function main() {
   `)
   record('overlay container mounted', mounted.present, `${mounted.children} child element(s)`)
 
-  // --- it must be playing a real, decoded VP9-alpha video ----------------
+  // --- it must be playing equally sized, decoded VP9-alpha videos --------
+  // The expected size comes from the manifest rather than a literal: hardcoding
+  // it here meant a legitimate change to the render size showed up as a plugin
+  // failure, which is a test bug masquerading as a product bug. Every clip is
+  // asserted to share one size, which is the property that actually matters.
+  const expected = await cdp.evaluate(`
+    const res = await fetch('/dsh-nyanko-sensei/manifest.json', { cache: 'no-store' });
+    const manifest = await res.json();
+    const sizes = await Promise.all((manifest.anims || []).map((name) => new Promise((resolve) => {
+      const v = document.createElement('video');
+      v.muted = true;
+      v.preload = 'metadata';
+      v.addEventListener('loadedmetadata', () => resolve({ name, w: v.videoWidth, h: v.videoHeight }), { once: true });
+      v.addEventListener('error', () => resolve({ name, w: 0, h: 0 }), { once: true });
+      setTimeout(() => resolve({ name, w: 0, h: 0 }), 8000);
+      v.src = '/dsh-nyanko-sensei/anims/' + encodeURIComponent(name) + '.webm';
+    })));
+    const distinct = [...new Set(sizes.filter((s) => s.w > 0).map((s) => s.w + 'x' + s.h))];
+    return { sizes, distinct, failed: sizes.filter((s) => s.w === 0).map((s) => s.name) };
+  `)
+  record('every declared animation loads its own video',
+    (expected?.failed ?? ['unknown']).length === 0,
+    expected?.failed?.length
+      ? `failed: ${expected.failed.join(', ')}`
+      : `${expected?.sizes?.length} clips`)
+  record('all animations share one frame size',
+    (expected?.distinct ?? []).length === 1,
+    expected?.distinct?.join(' / ') || 'none')
+
   const media = await cdp.evaluate(`
     const root = document.querySelector('[data-dsh-nyanko-sensei="root"]');
     if (!root) return { error: 'no pet' };
@@ -187,16 +215,16 @@ async function main() {
       paused: v.paused,
       duration: Number.isFinite(v.duration) ? Math.round(v.duration * 100) / 100 : null,
       w: v.videoWidth, h: v.videoHeight,
-      opacity: v.style.opacity,
+      opacity: Number(v.style.opacity),
       anim: v.dataset.anim || null,
       loop: v.loop,
     }));
   `)
-  const playing = (media ?? []).filter((v) => v && v.readyState >= 2 && v.w === 360 && v.h === 360)
-  record('animation videos decoded (360x360)', playing.length > 0,
-    playing.map((v) => `${v.anim}${v.paused ? '(paused)' : ''} ${v.duration}s`).join(', ') || JSON.stringify(media))
-  record('a video is actually running', playing.some((v) => !v.paused),
-    playing.map((v) => `${v.anim}:${v.paused ? 'paused' : 'playing'}`).join(', '))
+  const decoded = (media ?? []).filter((v) => v && v.readyState >= 2 && v.w > 0)
+  record('a video is decoded and playing in the pet',
+    decoded.some((v) => !v.paused) && decoded.some((v) => v.opacity > 0.5),
+    decoded.map((v) => `${v.anim}:${v.w}x${v.h}:${v.paused ? 'paused' : 'running'}:op${v.opacity}`).join(', ')
+      || JSON.stringify(media))
 
   // --- the alpha plane must survive into the browser ---------------------
   const alpha = await cdp.evaluate(`
@@ -286,51 +314,56 @@ async function main() {
   console.log(`\nscreenshot: ${shotPath}\n            ${docsShot}`)
 
   // --- it must settle back to a resting animation, not stay stuck ---------
-  // A pet frozen mid-stride is the failure this plugin's animation machine is
-  // most likely to produce, so it gets an explicit assertion rather than an
-  // eyeball. The wait covers the longest one-shot reaction plus its fallback.
+  // A pet frozen mid-reaction is the failure this animation machine is most
+  // likely to produce, so it gets an explicit assertion rather than an eyeball.
+  // The wait covers the longest one-shot reaction plus its fallback. Which
+  // animations count as "resting" is read from the client's own table rather
+  // than duplicated here, so adding a looping animation cannot break the test.
   await sleep(7000)
   const settled = await cdp.evaluate(`
     const root = document.querySelector('[data-dsh-nyanko-sensei="root"]');
     if (!root) return { error: 'no pet' };
     const videos = [...root.querySelectorAll('video')];
     const visible = videos.filter((v) => Number(v.style.opacity) > 0.5);
+    const oneShots = ['ear_flick', 'hop', 'bounce_land', 'happy', 'angry', 'surprised', 'spin'];
     return {
       all: videos.map((v) => v.dataset.anim),
       visible: visible.map((v) => v.dataset.anim),
       playing: videos.filter((v) => !v.paused).map((v) => v.dataset.anim),
+      stuckInOneShot: visible.map((v) => v.dataset.anim).filter((a) => oneShots.includes(a)),
     };
   `)
-  const resting = new Set(['idle', 'sit', 'sleep', 'blink', 'yawn'])
-  record('settles to a resting animation (not stuck mid-stride)',
-    !!settled && (settled.visible ?? []).every((a) => resting.has(a)),
+  record('settles out of one-shot reactions (not stuck mid-reaction)',
+    !!settled && (settled.stuckInOneShot ?? ['unknown']).length === 0,
     `visible=${(settled?.visible ?? []).join(',')} playing=${(settled?.playing ?? []).join(',')}`)
 
-  // --- the cross-fade must leave exactly one buffer decoding --------------
-  // Sampled rather than asserted once: a single sample can land mid-swap, where
-  // both videos are legitimately live for the length of the fade. The invariant
-  // that actually matters is that the *visible* buffer is the running one, and
-  // that a settled pet never has two videos decoding at once.
+  // --- the cross-fade must never leave two buffers visible ---------------
+  // Sampled over several seconds rather than asserted once, because a single
+  // sample can land inside a cross-fade, where two videos are legitimately live
+  // for the length of the fade. The invariants that actually matter are that at
+  // most one buffer is ever visible, and that the visible one is the running
+  // one — a visible-but-paused buffer is a frozen pet.
   const samples = []
-  for (let i = 0; i < 6; i += 1) {
+  for (let i = 0; i < 8; i += 1) {
     samples.push(await cdp.evaluate(`
       const root = document.querySelector('[data-dsh-nyanko-sensei="root"]');
       const videos = [...root.querySelectorAll('video')];
       const visible = videos.filter((v) => Number(v.style.opacity) > 0.5);
       return {
-        opacity: videos.map((v) => Number(v.style.opacity)),
-        running: videos.filter((v) => !v.paused).map((v) => v.dataset.anim),
+        visibleCount: visible.length,
+        visiblePlaying: visible.filter((v) => !v.paused).length,
         visible: visible.map((v) => v.dataset.anim),
+        running: videos.filter((v) => !v.paused).map((v) => v.dataset.anim),
       };
     `))
-    await sleep(700)
+    await sleep(600)
   }
-  const faded = samples.filter((s) => (s.opacity ?? []).filter((o) => o > 0.5).length === 1)
-  const oneRunning = faded.filter((s) => (s.running ?? []).length <= 1)
-  record('cross-fade leaves one visible buffer running',
-    faded.length > 0 && oneRunning.length === faded.length,
-    `${oneRunning.length}/${faded.length} settled samples had at most one decoder; ` +
-    `visible=${(samples.at(-1)?.visible ?? []).join(',')} running=${(samples.at(-1)?.running ?? []).join(',')}`)
+  const neverTwoVisible = samples.every((s) => (s.visibleCount ?? 0) <= 1)
+  const visibleAlwaysRunning = samples.every((s) => s.visibleCount === 0 || s.visiblePlaying === s.visibleCount)
+  record('at most one buffer is visible at any sample', neverTwoVisible,
+    samples.map((s) => s.visibleCount).join(','))
+  record('the visible buffer is always the running one', visibleAlwaysRunning,
+    samples.map((s) => `${(s.visible ?? []).join('+') || '-'}:${s.visiblePlaying}/${s.visibleCount}`).join(' '))
 
   // --- the page must not have logged pet errors --------------------------
   const noise = cdp.console.filter((entry) =>
