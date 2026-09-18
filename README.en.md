@@ -22,6 +22,10 @@ It is a pure front-end pet: **it patches nothing in the DSH tree** and occupies 
 
 ## Preview
 
+How it looks in a real page (captured by the end-to-end run in [`tools/verify-browser.mjs`](tools/verify-browser.mjs), not staged by hand):
+
+![Nyanko-sensei living in the DSH Web UI](docs/screenshot.png)
+
 Twelve actions are declared in code (see [How it works](#how-it-works)). Preview GIFs are generated per action by the asset pipeline, and three of them are built in the repository today:
 
 | Action | Preview |
@@ -240,7 +244,7 @@ If no such clip exists, nothing happens: no error, no dialog, just the animation
 
 ### The repository only carries synthetic placeholders
 
-`assets/voice/` does contain seven WAV files (`natsume`, `happy`, `angry`, `surprised`, `eat`, `purr`, `sleep`), and every one of them is **synthesised in code by [`tools/gen_voice.py`](tools/gen_voice.py)**: a glottal pulse train shaped by two resonant formants, with an amplitude envelope and a little breath noise. It is a stylised cartoon meow, deliberately unlike a human voice actor.
+`assets/voice/` does contain seven MP3 files (`natsume`, `happy`, `angry`, `surprised`, `eat`, `purr`, `sleep`), and every one of them is **synthesised in code by [`tools/gen_voice.py`](tools/gen_voice.py)**: a glottal pulse train shaped by two resonant formants, with an amplitude envelope and a little breath noise. It is a stylised cartoon meow, deliberately unlike a human voice actor.
 
 **They are not the original recordings, and they cannot be** — that audio is a commercial recording this plugin has no right to redistribute, so all it ships is something that makes the click-to-speak path audible and testable.
 
@@ -379,7 +383,7 @@ dsh-nyanko-sensei/
 │   └── client.js              # browser half: the pet itself (animation machine, interaction, voice, autonomy)
 ├── assets/
 │   ├── anims/                 # action assets: VP9-alpha WebM (360x360), produced by the pipeline
-│   └── voice/                 # seven synthetic placeholder WAVs, overridable by the user
+│   └── voice/                 # seven synthetic placeholder MP3s, overridable by the user
 ├── tools/
 │   ├── ofox.py                # OfoxAI relay client; key comes from the DSH credential store
 │   ├── candidates.py          # multi-model style shortlist
@@ -387,12 +391,13 @@ dsh-nyanko-sensei/
 │   ├── build_assets.py        # stage 2: key + align -> frames -> WebM -> preview GIFs
 │   ├── gen_voice.py           # synthesise the placeholder voice clips
 │   ├── record-voice.ps1       # microphone take + trim + normalise
-│   ├── check-package.mjs      # static self-check
+│   ├── check-package.mjs      # static self-check: bundle parses, assets complete
+│   ├── verify-browser.mjs     # end-to-end: drives Edge over CDP against the real pet
 │   └── build-all.cmd          # run the whole pipeline in one go
 ├── docs/
+│   ├── screenshot.png         # runtime capture, written by verify-browser.mjs
 │   └── preview/               # preview GIF output directory (written by art:build)
 ├── work/                      # intermediates (sheets, frames, shortlist); safe to delete
-├── src/                       # reserved for custom action/voice-pack extensions (currently empty)
 ├── README.md                  # Chinese README
 ├── README.en.md               # this file
 ├── LICENSE                    # MIT + media assets note
@@ -419,7 +424,7 @@ Files on the user's side live in the DSH home, not in the package:
 This is **expected, not a bug** — the plugin ships only synthetic placeholder audio and no original voice line.
 
 1. Check that "enable voice" is on and that the volume is not zero in the settings panel.
-2. Look at the hint at the bottom of the settings panel: it lists the voice packs and clip counts it found. As long as the packaged `assets/voice/*.wav` were discovered, it shows at least `default(7)`. If it says no voice files were found at all, the host's media roots are not reading the package — check that the plugin installed completely.
+2. Look at the hint at the bottom of the settings panel: it lists the voice packs and clip counts it found. As long as the packaged `assets/voice/*.mp3` were discovered, it shows at least `default(7)`. If it says no voice files were found at all, the host's media roots are not reading the package — check that the plugin installed completely.
 3. Put a `natsume.mp3` under `%USERPROFILE%\.dsh\dsh-nyanko-sensei\voice\` as described in [Voice](#voice), then refresh the page.
 4. Browser autoplay policy can block audio that has no user gesture behind it. A click is a gesture, so ordinary use is fine, but script-triggered clicks right after load may be refused — the console will say so.
 5. A greyed-out "呼唤「なつめ」" in the quick menu means the same thing: no `natsume` clip was found.

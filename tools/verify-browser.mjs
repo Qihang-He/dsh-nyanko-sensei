@@ -258,11 +258,32 @@ async function main() {
   record('voice clip loads and decodes in the browser', voice?.ok === true,
     voice?.error ?? `${voice?.url} (${voice?.bytes} bytes, ${voice?.duration ? Math.round(voice.duration * 100) / 100 + 's' : voice?.reason})`)
 
-  // --- screenshot for the record -----------------------------------------
+  // --- screenshots for the record and for the plugin listing --------------
+  // A reaction is triggered first so the capture shows the pet doing something
+  // rather than mid-transition, and so the bubble is visible if one fired.
+  await cdp.evaluate(`
+    const root = document.querySelector('[data-dsh-nyanko-sensei="root"]');
+    const stage = root && root.querySelector('div');
+    if (stage) {
+      const b = stage.getBoundingClientRect();
+      const opts = { bubbles: true, cancelable: true, clientX: b.left + b.width / 2,
+                     clientY: b.top + b.height * 0.3, pointerId: 2, button: 0, isPrimary: true };
+      stage.dispatchEvent(new PointerEvent('pointerdown', opts));
+      stage.dispatchEvent(new PointerEvent('pointerup', opts));
+    }
+    await new Promise((r) => setTimeout(r, 450));
+  `)
   const shot = await cdp.send('Page.captureScreenshot', { format: 'png' })
   const shotPath = path.join(SHOTS, 'desktop-pet.png')
   await writeFile(shotPath, Buffer.from(shot.data, 'base64'))
-  console.log(`\nscreenshot: ${shotPath}`)
+
+  // The docs copy is what the plugin listing and the README show, so it is
+  // written from the same capture rather than kept as a hand-maintained file
+  // that silently goes stale.
+  mkdirSync(path.join(ROOT, 'docs'), { recursive: true })
+  const docsShot = path.join(ROOT, 'docs', 'screenshot.png')
+  await writeFile(docsShot, Buffer.from(shot.data, 'base64'))
+  console.log(`\nscreenshot: ${shotPath}\n            ${docsShot}`)
 
   // --- it must settle back to a resting animation, not stay stuck ---------
   // A pet frozen mid-stride is the failure this plugin's animation machine is
@@ -284,9 +305,32 @@ async function main() {
   record('settles to a resting animation (not stuck mid-stride)',
     !!settled && (settled.visible ?? []).every((a) => resting.has(a)),
     `visible=${(settled?.visible ?? []).join(',')} playing=${(settled?.playing ?? []).join(',')}`)
-  record('only one buffer is left decoding at rest',
-    (settled?.playing ?? []).length <= 1,
-    `playing=${(settled?.playing ?? []).join(',') || 'none'}`)
+
+  // --- the cross-fade must leave exactly one buffer decoding --------------
+  // Sampled rather than asserted once: a single sample can land mid-swap, where
+  // both videos are legitimately live for the length of the fade. The invariant
+  // that actually matters is that the *visible* buffer is the running one, and
+  // that a settled pet never has two videos decoding at once.
+  const samples = []
+  for (let i = 0; i < 6; i += 1) {
+    samples.push(await cdp.evaluate(`
+      const root = document.querySelector('[data-dsh-nyanko-sensei="root"]');
+      const videos = [...root.querySelectorAll('video')];
+      const visible = videos.filter((v) => Number(v.style.opacity) > 0.5);
+      return {
+        opacity: videos.map((v) => Number(v.style.opacity)),
+        running: videos.filter((v) => !v.paused).map((v) => v.dataset.anim),
+        visible: visible.map((v) => v.dataset.anim),
+      };
+    `))
+    await sleep(700)
+  }
+  const faded = samples.filter((s) => (s.opacity ?? []).filter((o) => o > 0.5).length === 1)
+  const oneRunning = faded.filter((s) => (s.running ?? []).length <= 1)
+  record('cross-fade leaves one visible buffer running',
+    faded.length > 0 && oneRunning.length === faded.length,
+    `${oneRunning.length}/${faded.length} settled samples had at most one decoder; ` +
+    `visible=${(samples.at(-1)?.visible ?? []).join(',')} running=${(samples.at(-1)?.running ?? []).join(',')}`)
 
   // --- the page must not have logged pet errors --------------------------
   const noise = cdp.console.filter((entry) =>

@@ -60,22 +60,23 @@
 
 ### 生成方式
 
-`assets/voice/` 下的 7 个 WAV 文件**全部由 [`tools/gen_voice.py`](tools/gen_voice.py) 程序化合成**，不含任何录音、采样或第三方音频。
+`assets/voice/` 下的 7 个 MP3 文件**全部由 [`tools/gen_voice.py`](tools/gen_voice.py) 程序化合成**，不含任何录音、采样或第三方音频。脚本先渲染成 WAV，再用 ffmpeg 转成 96 kbps 单声道 MP3（76 KiB，而 WAV 是 535 KiB）；ffmpeg 不可用时脚本会保留 WAV，宿主两种格式都能播放。
 
 | 文件 | clip id | 合成配方（脚本内 `CLIPS` 表） |
 | --- | --- | --- |
-| `natsume.wav` | `natsume` | 单声喵叫：基频 430→700→330 Hz，0.72 秒 |
-| `happy.wav` | `happy` | 更亮的喵叫：500→820→420 Hz，0.52 秒 |
-| `angry.wav` | `angry` | 短促的恼怒叫声，0.34 秒 |
-| `surprised.wav` | `surprised` | 高而尖的短喵：620→980→520 Hz，0.34 秒 |
-| `eat.wav` | `eat` | 240 Hz 颤音，0.85 秒 |
-| `purr.wav` | `purr` | 180 Hz 呼噜颤音，1.4 秒 |
-| `sleep.wav` | `sleep` | 150 Hz 低沉呼噜，1.8 秒 |
+| `natsume.mp3` | `natsume` | 单声喵叫：基频 430→700→330 Hz，0.72 秒 |
+| `happy.mp3` | `happy` | 更亮的喵叫：500→820→420 Hz，0.52 秒 |
+| `angry.mp3` | `angry` | 短促的恼怒叫声，0.34 秒 |
+| `surprised.mp3` | `surprised` | 高而尖的短喵：620→980→520 Hz，0.34 秒 |
+| `eat.mp3` | `eat` | 240 Hz 颤音，0.85 秒 |
+| `purr.mp3` | `purr` | 180 Hz 呼噜颤音，1.4 秒 |
+| `sleep.mp3` | `sleep` | 150 Hz 低沉呼噜，1.8 秒 |
 
 合成方式是声门脉冲串（glottal pulse train）+ 双共振峰（formant）滤波 + 幅度包络 + 少量呼吸噪声，44.1 kHz / 16-bit / 单声道。脚本注释里写得很清楚：它**刻意做得卡通化、不像真人**，以免被误认为角色原声。复现只需：
 
 ```bash
-python tools/gen_voice.py
+python tools/gen_voice.py          # 输出 MP3（默认）
+python tools/gen_voice.py --wav    # 保留未压缩 WAV
 ```
 
 ### 它们不是什么
@@ -117,5 +118,5 @@ python tools/gen_voice.py
 | `assets/anims/*.webm` | 动画 | Google Gemini 图像模型经 OfoxAI 生成，`tools/gen_art.py` | 否 | 不属 MIT，随插件使用 |
 | `work/**` | 中间产物 | 同上 | 否 | 不属 MIT，可删除 |
 | `docs/preview/*.gif` | 预览图 | 由 `assets/anims/` 的帧合成，`tools/build_assets.py` | 否 | 同 `assets/anims/` |
-| `assets/voice/*.wav` | 占位音频 | 纯程序合成，`tools/gen_voice.py` | 否 | 不属 MIT，随插件使用 |
+| `assets/voice/*.mp3` | 占位音频 | 纯程序合成，`tools/gen_voice.py` | 否 | 不属 MIT，随插件使用 |
 | 用户语音包 | 音频 | **使用者自己提供** | **可能是** | 由使用者自行负责，见第 3 节 |

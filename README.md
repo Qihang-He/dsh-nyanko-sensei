@@ -20,6 +20,10 @@
 
 ## 功能预览
 
+在真实页面里的样子（截图由 [`tools/verify-browser.mjs`](tools/verify-browser.mjs) 的端到端验证自动产出，不是手工摆拍）：
+
+![在 DSH Web 界面里的娘口三三](docs/screenshot.png)
+
 代码里声明了 12 个动作（见[功能说明](#功能说明)），预览动图由资源流水线逐动作生成，目前仓库中已构建出下面 3 个：
 
 | 动作 | 预览 |
@@ -238,7 +242,7 @@ dsh web
 
 ### 仓库里只有合成占位音
 
-`assets/voice/` 下确实有 7 个 WAV 文件（`natsume`、`happy`、`angry`、`surprised`、`eat`、`purr`、`sleep`），它们**全部由 [`tools/gen_voice.py`](tools/gen_voice.py) 程序化合成**：声门脉冲串 + 共振峰 + 包络 + 一点呼吸噪声，是一只卡通猫式的「喵」，刻意做得不像真人配音。
+`assets/voice/` 下确实有 7 个 MP3 文件（`natsume`、`happy`、`angry`、`surprised`、`eat`、`purr`、`sleep`），它们**全部由 [`tools/gen_voice.py`](tools/gen_voice.py) 程序化合成**：声门脉冲串 + 共振峰 + 包络 + 一点呼吸噪声，是一只卡通猫式的「喵」，刻意做得不像真人配音。
 
 **它们不是动画原声，也不可能是**——原版配音是商业录音，本插件无权分发，所以只提供能跑通播放链路的占位文件。
 
@@ -377,7 +381,7 @@ dsh-nyanko-sensei/
 │   └── client.js              # 浏览器端：桌宠本体（动画机、交互、语音、自主行为）
 ├── assets/
 │   ├── anims/                 # 动作资源：VP9-alpha WebM（360x360），由流水线生成
-│   └── voice/                 # 7 个合成占位 WAV，用户可用自己的音频覆盖
+│   └── voice/                 # 7 个合成占位 MP3，用户可用自己的音频覆盖
 ├── tools/
 │   ├── ofox.py                # OfoxAI 中继客户端，密钥取自 DSH 凭据库
 │   ├── candidates.py          # 多模型风格选型
@@ -385,12 +389,13 @@ dsh-nyanko-sensei/
 │   ├── build_assets.py        # 第 2 阶段：抠像对齐 → 帧 → WebM → 预览 GIF
 │   ├── gen_voice.py           # 合成占位语音
 │   ├── record-voice.ps1       # 麦克风录音 + 修剪 + 归一化
-│   ├── check-package.mjs      # 静态自检
+│   ├── check-package.mjs      # 静态自检：bundle 能否解析、资源是否齐全
+│   ├── verify-browser.mjs     # 端到端验证：用 CDP 驱动 Edge 实测桌宠
 │   └── build-all.cmd          # 一把梭跑完整条流水线
 ├── docs/
+│   ├── screenshot.png         # 运行时截图（由 verify-browser.mjs 自动产出）
 │   └── preview/               # 预览 GIF 输出目录（由 art:build 生成）
 ├── work/                      # 中间产物（雪碧图、帧、选型结果），可随时删除
-├── src/                       # 预留：自定义动作/语音包的扩展位（当前为空）
 ├── README.md                  # 中文说明（本文件）
 ├── README.en.md               # English README
 ├── LICENSE                    # MIT + 媒体资源说明
@@ -417,7 +422,7 @@ dsh-nyanko-sensei/
 这是**预期行为**，不是 bug——插件只带合成占位音，不含原版配音。
 
 1. 先确认设置面板里「启用语音」是开的、音量不是 0。
-2. 打开设置面板，看底部提示：它会列出当前发现的语音包和 clip 数量。只要包里自带的 `assets/voice/*.wav` 被识别到，这里至少会显示 `default(7)`。如果显示「未发现任何语音文件」，说明宿主端的媒体根没有读到包内资源，检查插件是否装全了。
+2. 打开设置面板，看底部提示：它会列出当前发现的语音包和 clip 数量。只要包里自带的 `assets/voice/*.mp3` 被识别到，这里至少会显示 `default(7)`。如果显示「未发现任何语音文件」，说明宿主端的媒体根没有读到包内资源，检查插件是否装全了。
 3. 按[语音](#语音)一节把 `natsume.mp3` 放到 `%USERPROFILE%\.dsh\dsh-nyanko-sensei\voice\` 下，然后刷新页面。
 4. 浏览器的自动播放策略会拦截没有用户交互的音频播放——点击本身是用户交互，正常不受影响，但如果整页刚加载你就用脚本触发点击，可能被拦。控制台会有相应提示。
 5. 右键菜单里「呼唤「なつめ」」是灰的，同样表示 `natsume` 这个 clip 没找到。
