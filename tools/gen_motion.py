@@ -57,10 +57,17 @@ ASSETS = ROOT / "assets" / "anims"
 # higher internal size and downsampled once at the end: warping at the source
 # resolution would destroy the linework, and shipping the upscaled size would
 # waste bytes for no visible gain at pet scale.
+#
+# GROUND_Y sits about 30px above the bottom edge rather than at it. Deformation
+# moves the feet away from the rest position — a landing squash spreads them
+# outward and a hop lifts the whole body — and with the ground line flush to the
+# edge those frames were clipped, which is visible in the running pet as feet cut
+# off at the bottom of its box. The margin is what keeps the feet in frame at the
+# extremes, and it is cheaper than making every animation aware of its own bounds.
 RENDER = 720
 CANVAS = (384, 384)
-TARGET_H = 320
-GROUND_Y = 366
+TARGET_H = 296
+GROUND_Y = 352
 FPS = 12
 FFMPEG = "ffmpeg"
 

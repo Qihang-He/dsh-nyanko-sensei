@@ -69,6 +69,23 @@ VIDEO_MODELS = {
 DEFAULT_IMAGE_MODEL = IMAGE_MODELS["seedream-4.0"]
 DEFAULT_VIDEO_MODEL = VIDEO_MODELS["seedance-2.0-mini"]
 
+# Ark refuses images below 921600 pixels (about 960x960). Nothing else in the API
+# complains about a small size, so an undersized request fails with an opaque
+# InvalidParameter rather than being scaled up — worth catching before the call,
+# because discovering it mid-batch costs real money and a confusing debug cycle.
+MIN_IMAGE_PIXELS = 921600
+DEFAULT_IMAGE_SIZE = "1024x1024"
+
+
+def image_size(width: int, height: int) -> str:
+    """Validate and format a `size` value, refusing one Ark will reject."""
+    pixels = width * height
+    if pixels < MIN_IMAGE_PIXELS:
+        raise ValueError(
+            f"{width}x{height} is {pixels} pixels; Ark requires at least "
+            f"{MIN_IMAGE_PIXELS}. Use {DEFAULT_IMAGE_SIZE} or larger.")
+    return f"{width}x{height}"
+
 # Per-unit prices in CNY, used only to report and to stop a runaway batch. These
 # are the provider's published rates, not a billing source of truth — the console
 # is. They exist so a batch cannot silently spend more than the caller expected.
@@ -396,7 +413,8 @@ def check() -> int:
         r = requests.post(f"{BASE}/images/generations",
                           headers=_headers(key),
                           json={"model": DEFAULT_IMAGE_MODEL, "prompt": "a red dot",
-                                "size": "512x512", "response_format": "b64_json",
+                                "size": DEFAULT_IMAGE_SIZE,
+                                "response_format": "b64_json",
                                 "watermark": False},
                           timeout=180)
     except Exception as exc:  # noqa: BLE001

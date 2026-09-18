@@ -81,38 +81,101 @@ def split_sheet(path: Path) -> list[Image.Image]:
 # ---------------------------------------------------------------------------
 # chroma key
 # ---------------------------------------------------------------------------
-def chroma_to_alpha(rgb: Image.Image) -> Image.Image:
-    """Replace the flat green screen with alpha.
+def chroma_to_alpha(rgb: Image.Image, screen: tuple[float, float, float] | None = None,
+                    dominance_threshold: float = 18.0,
+                    near_threshold: float = 150.0) -> Image.Image:
+    """Replace a flat colour screen with alpha, whatever colour the screen is.
 
-    Works in float RGB. A pixel is background when it is close to the *measured*
-    screen colour — sampled as the median of the image border, because the model
-    renders "green" with a little variance — and simultaneously green-dominant.
-    The mask edge is a linear ramp, which keeps the outline antialiased instead
-    of stair-stepped.
+    The screen colour is measured from the image border rather than assumed, and
+    the "is this background?" test is written in terms of that measurement. That
+    matters because the earlier version of this function hard-coded *green*
+    dominance — a pixel counted as screen only if green exceeded both other
+    channels — which is correct for a green screen and silently useless for any
+    other colour: asked to key magenta, it kept 100% of the frame and reported a
+    full-frame character.
+
+    Two ramps multiply, and both are needed:
+
+    * **distance** from the measured screen colour, which is what identifies the
+      flat background and tolerates the slight variance a model renders it with;
+    * **saturation relative to the screen**, which stops the ramp from eating
+      low-contrast artwork that happens to sit near the screen colour in absolute
+      terms.
+
+    Screening on saturation rather than on a fixed channel is what makes the
+    function colour-agnostic: magenta, green and blue screens all work, and a
+    screen colour can be passed in explicitly when it is known.
     """
     arr = np.asarray(rgb, dtype=np.float32)
     h, w, _ = arr.shape
-    border = np.concatenate([
-        arr[0:2].reshape(-1, 3), arr[h - 2:h].reshape(-1, 3),
-        arr[:, 0:2].reshape(-1, 3), arr[:, w - 2:w].reshape(-1, 3),
-    ])
-    screen = np.median(border, axis=0)
+    if screen is None:
+        band = max(2, int(min(h, w) * 0.02))
+        border = np.concatenate([
+            arr[:band].reshape(-1, 3), arr[-band:].reshape(-1, 3),
+            arr[:, :band].reshape(-1, 3), arr[:, -band:].reshape(-1, 3),
+        ])
+        screen = tuple(np.median(border, axis=0))
+    screen_arr = np.array(screen, dtype=np.float32)
 
-    r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
-    # Green dominance: the screen is far greener than either other channel.
-    dominance = g - np.maximum(r, b)
-    # Distance from the measured screen colour, normalised.
-    dist = np.sqrt(((arr - screen) ** 2).sum(axis=2))
+    dist = np.sqrt(((arr - screen_arr) ** 2).sum(axis=2))
 
-    # Two ramps multiplied: "green enough" and "close enough to the screen".
-    dom_alpha = np.clip((dominance - 18.0) / 26.0, 0.0, 1.0)
-    dist_alpha = np.clip((150.0 - dist) / 70.0, 0.0, 1.0)
-    background = dom_alpha * dist_alpha
+    # How saturated is this pixel, and how saturated is the screen? A screen is
+    # by construction a vivid flat colour; the character is cream, brown and grey.
+    def saturation(buf: np.ndarray) -> np.ndarray:
+        mx = buf.max(axis=-1)
+        mn = buf.min(axis=-1)
+        return np.where(mx > 1e-6, (mx - mn) / np.maximum(mx, 1e-6), 0.0)
+
+    sat = saturation(arr)
+    screen_sat = float(saturation(screen_arr.reshape(1, 1, 3))[0, 0])
+    # Pixels at least this saturated can be screen; well below the screen's own
+    # saturation, so anti-aliased edges still fade rather than cut.
+    sat_ramp = np.clip((sat - screen_sat * 0.28) / max(1e-6, screen_sat * 0.30), 0.0, 1.0)
+    dist_ramp = np.clip((near_threshold - dist) / 70.0, 0.0, 1.0)
+    background = sat_ramp * dist_ramp
 
     out = np.zeros((h, w, 4), dtype=np.uint8)
-    out[..., :3] = arr.astype(np.uint8)
+    out[..., :3] = _despill(arr, screen_arr, background, 1.0 - background).astype(np.uint8)
     out[..., 3] = np.clip((1.0 - background) * 255.0, 0, 255).astype(np.uint8)
     return Image.fromarray(out, "RGBA")
+
+
+def _despill(arr: np.ndarray, screen: np.ndarray, background: np.ndarray,
+             alpha: np.ndarray, strength: float = 40.0) -> np.ndarray:
+    """Remove screen contamination from the pixels that survive the key.
+
+    A chroma key answers "is this pixel background?" but a model asked for a
+    coloured screen does not keep that colour out of the artwork: it tints the
+    outline and the anti-aliased edge with it. Those pixels are mostly character,
+    so the key correctly keeps them — and they then read as a coloured fringe
+    around the sprite once it is composited over a page.
+
+    Written against the measured screen colour rather than against green. The
+    first version of this function only ever lowered the green channel, which is
+    correct for a green screen and does nothing at all for a magenta one — the
+    measured magenta tint on a real output was 70 units and the green-only
+    version left every unit of it in place.
+
+    For each pixel, whichever channel the screen dominates is the channel pulled
+    down toward the other two. `strength` is a 0..255 allowance for genuinely
+    saturated artwork, and it is calibrated against this character: the gold bell
+    and eyes reach a green excess of 13 against a key threshold of 18, so an
+    allowance of 40 cannot flatten them.
+
+    Weighted by `alpha`, which matters: a semi-transparent edge pixel *should*
+    carry the screen colour, because the matte already tells the compositor how
+    much of it to show. Recolouring those would darken the outline into a hard
+    rim.
+    """
+    out = arr.astype(np.float32).copy()
+    screen = screen.astype(np.float32)
+    # The channel the screen lives in, and its two companions.
+    channel = int(np.argmax(screen))
+    others = [i for i in range(3) if i != channel]
+    ceiling = np.maximum(out[..., others[0]], out[..., others[1]]) + strength
+    excess = np.clip(out[..., channel] - ceiling, 0.0, None)
+    out[..., channel] -= excess * np.clip(alpha, 0.0, 1.0)
+    return out
 
 
 def content_box(rgba: Image.Image, threshold: int = 16) -> tuple[int, int, int, int]:
