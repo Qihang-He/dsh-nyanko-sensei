@@ -20,28 +20,43 @@
 
 ## 功能预览
 
-在真实页面里的样子（截图由 [`tools/verify-browser.mjs`](tools/verify-browser.mjs) 的端到端验证自动产出，不是手工摆拍）：
+> **这个仓库里没有图片。** 动图与截图都是角色画面，而角色画面派生于使用者自己提供的
+> 美术素材，带有与素材相同的再分发限制，因此不随仓库分发。下面的路径在本地构建后
+> 就会出现，构建步骤见[开发](#开发)。
 
-![在 DSH Web 界面里的娘口三三](docs/screenshot.png)
+在真实页面里的样子（截图由 [`tools/verify-browser.mjs`](tools/verify-browser.mjs) 的端到端验证自动产出，不是手工摆拍，因此永远和当前代码一致）：
 
-代码里声明了 12 个动作（见[功能说明](#功能说明)），预览动图由资源流水线逐动作生成，目前仓库中已构建出下面 3 个：
-
-| 动作 | 预览 |
-| --- | --- |
-| `idle` 站立呼吸 | ![idle](docs/preview/idle.gif) |
-| `walk` 走路 | ![walk](docs/preview/walk.gif) |
-| `sit` 端坐 | ![sit](docs/preview/sit.gif) |
-
-其余动作的雪碧图提示词已经写在 [`tools/gen_art.py`](tools/gen_art.py) 的 `ACTIONS` 表里，跑完整条流水线即可补齐：
-
-```bash
-python tools/gen_art.py actions
-python tools/build_assets.py all
+```
+docs/screenshot.png
 ```
 
-构建完成后 `assets/anims/<动作名>.webm` 与 `docs/preview/<动作名>.gif` 会一并出现。
+13 个动作的循环预览由构建逐动作写出（`tools/gen_motion.py` 生成）：
+
+| 类别 | 动作 |
+| --- | --- |
+| 待机循环 | `idle` 呼吸、`breathe_deep` 深呼吸、`look_around` 张望、`sleep` 打盹 |
+| 移动 | `walk` 走路 |
+| 小动作 | `ear_flick` 抖耳 |
+| 反应 | `hop` 跳、`bounce_land` 落地压弹、`happy` 高兴、`angry` 生气、`surprised` 吃惊、`spin` 转圈 |
+| 拖拽 | `drag` 悬空挣扎 |
+
+预览图路径为 `docs/preview/<动作名>.gif`。构建命令：
+
+```bash
+python tools/gen_motion.py        # 需要 work/sprites/base.png
+python tools/motion_sheet.py      # 逐帧审阅图，判断动作好坏看这个
+```
 
 > 动作资源的构建是增量的：`assets/anims/` 里缺哪个动作，客户端就会跳过它并退回 `idle`，桌宠本身照常可用。
+
+**两个方向的构建路径**，按手上有没有出图凭据选：
+
+| | 需要出图 key | 还原度 | 动作生动度 |
+| --- | --- | --- | --- |
+| `tools/gen_art.py` 出图 → `build_assets.py` 合成 | 是 | 近似（照文字描述重画） | 高，可多姿势 |
+| `tools/gen_motion.py` 形变已有美术 | 否 | **精确**（像素就是原画） | 中，单姿势 |
+
+见 [`STATUS.md`](STATUS.md) 了解两条路各自的取舍与实测结论。
 
 ## 安装
 

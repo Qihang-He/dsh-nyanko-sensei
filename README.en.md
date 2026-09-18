@@ -22,28 +22,41 @@ It is a pure front-end pet: **it patches nothing in the DSH tree** and occupies 
 
 ## Preview
 
-How it looks in a real page (captured by the end-to-end run in [`tools/verify-browser.mjs`](tools/verify-browser.mjs), not staged by hand):
+> **This repository contains no images.** The GIFs and the screenshot are pictures of the character, and the character's pixels are derived from artwork the person running the build supplies — so they carry that artwork's redistribution restriction and are not shipped here. The paths below appear once you build locally; see [Development](#development).
 
-![Nyanko-sensei living in the DSH Web UI](docs/screenshot.png)
+How it looks in a real page (captured by the end-to-end run in [`tools/verify-browser.mjs`](tools/verify-browser.mjs), not staged by hand, so it always matches the current code):
 
-Twelve actions are declared in code (see [How it works](#how-it-works)). Preview GIFs are generated per action by the asset pipeline, and three of them are built in the repository today:
-
-| Action | Preview |
-| --- | --- |
-| `idle` standing, breathing | ![idle](docs/preview/idle.gif) |
-| `walk` walking | ![walk](docs/preview/walk.gif) |
-| `sit` sitting | ![sit](docs/preview/sit.gif) |
-
-The sprite-sheet prompts for the remaining actions are already written in the `ACTIONS` table of [`tools/gen_art.py`](tools/gen_art.py); running the full pipeline fills them in:
-
-```bash
-python tools/gen_art.py actions
-python tools/build_assets.py all
+```
+docs/screenshot.png
 ```
 
-That produces `assets/anims/<action>.webm` and `docs/preview/<action>.gif` together.
+The build writes a looping GIF per action (`tools/gen_motion.py`), thirteen of them:
+
+| Group | Actions |
+| --- | --- |
+| Resting loops | `idle` breathing, `breathe_deep`, `look_around`, `sleep` |
+| Movement | `walk` |
+| Small motion | `ear_flick` |
+| Reactions | `hop`, `bounce_land`, `happy`, `angry`, `surprised`, `spin` |
+| Dragged | `drag` |
+
+Previews land at `docs/preview/<action>.gif`. To build them:
+
+```bash
+python tools/gen_motion.py        # needs work/sprites/base.png
+python tools/motion_sheet.py      # per-frame review sheets
+```
 
 > Action assets build incrementally: whichever action is missing from `assets/anims/` is skipped and falls back to `idle`, and the pet itself keeps working.
+
+**Two build paths**, depending on whether an image-generation credential is available:
+
+| | Needs a key | Likeness | Motion |
+| --- | --- | --- | --- |
+| `tools/gen_art.py` → `build_assets.py` | yes | approximate (redrawn from a written spec) | high, multiple poses |
+| `tools/gen_motion.py` (deform existing art) | no | **exact** (the pixels are the artwork) | medium, single pose |
+
+See [`STATUS.md`](STATUS.md) (Chinese) for the measurements behind both.
 
 ## Installation
 
