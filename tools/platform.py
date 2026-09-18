@@ -267,11 +267,19 @@ def create_video_task(prompt: str, model: str | None = None,
     return task_id
 
 
-def poll_video_task(task_id: str, timeout: int = 900, interval: float = 5.0) -> dict:
-    """Poll a task until it succeeds, fails, or the timeout expires."""
+def poll_video_task(task_id: str, timeout: int = 900, interval: float = 5.0,
+                    quiet: bool = False) -> dict:
+    """Poll a task until it succeeds, fails, or the timeout expires.
+
+    Reports progress by default. A generation takes minutes, and a silent wait is
+    indistinguishable from a hang — which is exactly when a user starts
+    re-submitting tasks and paying for them twice.
+    """
     key = require_key()
-    deadline = time.time() + timeout
+    started = time.time()
+    deadline = started + timeout
     last: dict = {}
+    last_status = None
     while time.time() < deadline:
         r = requests.get(f"{BASE}/contents/generations/tasks/{task_id}",
                          headers=_headers(key, json_body=False), timeout=60)
@@ -279,6 +287,13 @@ def poll_video_task(task_id: str, timeout: int = 900, interval: float = 5.0) -> 
             raise RuntimeError(f"Ark task poll HTTP {r.status_code}: {r.text[:300]}")
         last = r.json() or {}
         status = last.get("status")
+        if not quiet and status != last_status:
+            elapsed = int(time.time() - started)
+            print(f"    task {task_id}: {status} ({elapsed}s elapsed)", flush=True)
+            last_status = status
+        elif not quiet and int(time.time() - started) % 30 < interval:
+            print(f"    task {task_id}: still {status} "
+                  f"({int(time.time() - started)}s)", flush=True)
         if status in ("succeeded", "failed", "cancelled"):
             return last
         time.sleep(interval)
